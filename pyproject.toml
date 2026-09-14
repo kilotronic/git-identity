@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "git-identity"
+name = "kilotronic-git-identity"
 version = "1.0.0"
 description = "Pre-commit hook & GitHub Action: refuse placeholder git author identities."
 readme = "README.md"
@@ -24,7 +24,7 @@ dependencies = []
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]
-git-identity = "git_identity.check:main"
+check-git-identity = "git_identity.check:main"
 
 [project.urls]
 Homepage = "https://github.com/kilotronic/git-identity"

@@ -45,8 +45,8 @@ Pin a commit SHA in production (Renovate's `pinGitHubActionDigests` does this).
 ## Use as a CLI
 
 ```bash
-pip install git-identity
-git-identity
+pip install git+https://github.com/kilotronic/git-identity.git@v1.0.0
+check-git-identity
 ```
 
 Exit codes: `0` pass, `1` placeholder identity.

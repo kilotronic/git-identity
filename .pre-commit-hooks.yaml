@@ -1,7 +1,7 @@
 - id: git-identity
   name: Real git author identity
   description: Refuse placeholder git author/committer identities (Test <test@example.com>, ci, …).
-  entry: git-identity
+  entry: check-git-identity
   language: python
   always_run: true
   pass_filenames: false
