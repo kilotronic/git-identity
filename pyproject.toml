@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "git-identity"
+version = "1.0.0"
+description = "Pre-commit hook & GitHub Action: refuse placeholder git author identities."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Kilotronic LLC" }]
+keywords = ["git", "pre-commit", "identity", "author"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+git-identity = "git_identity.check:main"
+
+[project.urls]
+Homepage = "https://github.com/kilotronic/git-identity"
+Issues = "https://github.com/kilotronic/git-identity/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/git_identity"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

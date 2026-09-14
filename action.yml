@@ -1,0 +1,12 @@
+name: Git Identity
+description: Refuse placeholder git author/committer identities before a commit lands.
+branding:
+  icon: user
+  color: gray-dark
+
+runs:
+  using: composite
+  steps:
+    - name: Check git identity
+      shell: bash
+      run: python3 "$GITHUB_ACTION_PATH/src/git_identity/check.py"
