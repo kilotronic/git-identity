@@ -1,12 +1,20 @@
 name: Git Identity
-description: Refuse placeholder git author/committer identities before a commit lands.
+description: Refuse placeholder git identities, and optionally emails outside a domain.
 branding:
   icon: user
   color: gray-dark
+
+inputs:
+  domain:
+    description: Also require this email domain, e.g. ixid.net. Empty accepts any domain.
+    required: false
+    default: ""
 
 runs:
   using: composite
   steps:
     - name: Check git identity
       shell: bash
-      run: python3 "$GITHUB_ACTION_PATH/src/git_identity/check.py"
+      env:
+        DOMAIN: ${{ inputs.domain }}
+      run: python3 "$GITHUB_ACTION_PATH/src/git_identity/check.py" ${DOMAIN:+--domain "$DOMAIN"}

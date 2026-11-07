@@ -1,6 +1,7 @@
 # git-identity
 
-A tiny, stdlib-only gate that **refuses placeholder git author identities**.
+A tiny, stdlib-only gate that **refuses placeholder git author identities**, and optionally
+**emails outside a domain** you name.
 
 Agent sessions that never configured git stamp commits as `Test <test@example.com>`
 or `ci <ci@example.com>`. That breaks attribution: decisions recorded as "owner
@@ -11,6 +12,10 @@ fail. Checks the identity git will actually stamp (`GIT_AUTHOR_*` /
 `GIT_COMMITTER_*` first, then `git var`), so `git commit --author` overrides are
 validated too.
 
+`--domain` is optional. Without it, any real email passes. With it, every author
+and committer email must also be `…@<domain>` exactly (case-insensitive;
+subdomains do not match).
+
 Ships as a **pre-commit hook**, a **GitHub Action**, and a **CLI**.
 
 ## Use as a pre-commit hook
@@ -18,10 +23,11 @@ Ships as a **pre-commit hook**, a **GitHub Action**, and a **CLI**.
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    # Pin a dotted release tag (v1.0.0), not the floating Action major tag (v1).
-    rev: v1.0.0
+    # Pin a dotted release tag (v1.1.0), not the floating Action major tag (v1).
+    rev: v1.1.0
     hooks:
       - id: git-identity
+        args: [--domain=ixid.net]  # optional
         fail_fast: true
 ```
 
@@ -38,6 +44,8 @@ commit object).
 ```yaml
 - uses: actions/checkout@v4
 - uses: kilotronic/git-identity@v1
+  with:
+    domain: ixid.net  # optional
 ```
 
 Pin a commit SHA in production (Renovate's `pinGitHubActionDigests` does this).
@@ -45,11 +53,13 @@ Pin a commit SHA in production (Renovate's `pinGitHubActionDigests` does this).
 ## Use as a CLI
 
 ```bash
-pip install git+https://github.com/kilotronic/git-identity.git@v1.0.0
-check-git-identity
+pip install git+https://github.com/kilotronic/git-identity.git@v1.1.0
+check-git-identity                     # placeholder checks only
+check-git-identity --domain ixid.net   # also require the domain
 ```
 
-Exit codes: `0` pass, `1` placeholder identity.
+Exit codes: `0` pass, `1` placeholder identity or email outside the domain, `2`
+empty `--domain` value.
 
 Configure a real identity, then retry:
 
