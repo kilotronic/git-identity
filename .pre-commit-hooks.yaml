@@ -1,6 +1,6 @@
 - id: git-identity
   name: Real git author identity
-  description: Refuse placeholder git identities and optionally emails outside a domain (--domain=<domain>).
+  description: Refuse placeholder and machine-default git identities, and optionally emails outside a list of domains (--domain=a.com,b.com).
   entry: check-git-identity
   language: python
   always_run: true
