@@ -1,12 +1,25 @@
 name: Git Identity
-description: Refuse placeholder git identities, and optionally emails outside a domain.
+description: Refuse placeholder and machine-default git author emails, and optionally emails outside a list of domains.
 branding:
   icon: user
   color: gray-dark
 
 inputs:
+  domains:
+    description: >-
+      Allowed email domains, separated by commas, spaces or newlines (e.g. "ixid.net, kilotronic.com").
+      Empty accepts any real domain.
+    required: false
+    default: ""
   domain:
-    description: Also require this email domain, e.g. ixid.net. Empty accepts any domain.
+    description: Deprecated alias for `domains` (v1). Both may be set; the lists are combined.
+    required: false
+    default: ""
+  commits:
+    description: >-
+      What to check. Empty (default) = the commits this event brings in: a pull request's commits, or a push's
+      new commits; other events fall back to the runner's identity. A git range (e.g. "main..HEAD") checks
+      those commits. "identity" checks the identity git would stamp on this runner (the v1 behavior).
     required: false
     default: ""
 
@@ -16,5 +29,11 @@ runs:
     - name: Check git identity
       shell: bash
       env:
-        DOMAIN: ${{ inputs.domain }}
-      run: python3 "$GITHUB_ACTION_PATH/src/git_identity/check.py" ${DOMAIN:+--domain "$DOMAIN"}
+        DOMAINS: ${{ inputs.domains }} ${{ inputs.domain }}
+        COMMITS: ${{ inputs.commits }}
+        EVENT: ${{ github.event_name }}
+        PR_BASE: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        PUSH_AFTER: ${{ github.event.after }}
+      run: bash "$GITHUB_ACTION_PATH/src/git_identity/action.sh"
