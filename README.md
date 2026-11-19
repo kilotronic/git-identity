@@ -52,7 +52,46 @@ Inputs:
 | --- | --- | --- |
 | `domains` | empty (any) | Allowed email domains, separated by commas, spaces or newlines |
 | `commits` | empty (this event's commits) | A git range such as `main..HEAD`, or `identity` to check the identity git would stamp on the runner (the v1 behavior) |
+| `allow-bots` | empty (nobody) | Dependency bots whose own updates skip the check: `dependabot`, `renovate` (see below) |
+| `token` | `github.token` | Used only with `allow-bots`, to ask GitHub which pull request a pushed commit merged |
 | `domain` | empty | Deprecated v1 alias; it is combined with `domains` |
+
+### Dependency bots (opt-in)
+
+Dependabot and Renovate author their commits as their GitHub noreply address, which no domain list
+contains, so with `domains` set their pull requests fail. `allow-bots` lets a bot's own update through:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: read # allow-bots: which pull request a pushed commit merged
+steps:
+  - uses: actions/checkout@v4
+  - uses: kilotronic/git-identity@v2
+    with:
+      domains: ixid.net
+      allow-bots: dependabot, renovate
+```
+
+The check is skipped only when everything below holds; otherwise, or on any error (git, GitHub's API),
+the normal author check runs. A commit that only uses a bot's email is still refused.
+
+- **Pull request:** opened by the bot from its branch (`dependabot/…` or `renovate/…`), this run started
+  by the bot, and every new non-merge commit authored by the bot's address and committed by GitHub
+  (`noreply@github.com`).
+- **Push** (the merge on the default branch): every new non-merge commit authored by the bot's address and
+  committed by GitHub, and GitHub links it as the merge commit of a merged pull request the bot opened
+  from its branch. This is a squash merge; a merge commit or rebase merge of a bot's pull request is
+  checked as usual.
+
+| Bot | Login | Author email | Branch prefix |
+| --- | --- | --- | --- |
+| `dependabot` | `dependabot[bot]` | `49699333+dependabot[bot]@users.noreply.github.com` | `dependabot/` |
+| `renovate` | `renovate[bot]` (the GitHub App) | `29139614+renovate[bot]@users.noreply.github.com` | `renovate/` |
+
+Renovate must use its default `branchPrefix` and commit through the GitHub App (its default), so GitHub
+is the committer. `allow-bots` applies only to the event's own commits, not to an explicit `commits`
+range. The pre-commit hook and CLI are unaffected.
 
 **v1 → v2:** v1 checked the runner's identity, not the commits. To keep that behavior, add
 `commits: identity`.
@@ -62,8 +101,8 @@ Inputs:
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    # Pin a dotted release tag (v2.0.0), not the floating Action major tag (v2).
-    rev: v2.0.0
+    # Pin a dotted release tag (v2.1.0), not the floating Action major tag (v2).
+    rev: v2.1.0
     hooks:
       - id: git-identity
         args: [--domain=ixid.net,kilotronic.com]  # optional
@@ -79,7 +118,7 @@ new commits. Use the Action to catch anything that slips past.
 ## Use as a CLI
 
 ```bash
-pip install git+https://github.com/kilotronic/git-identity.git@v2.0.0
+pip install git+https://github.com/kilotronic/git-identity.git@v2.1.0
 check-git-identity                                  # this machine; default identities only
 check-git-identity --domain ixid.net,kilotronic.com # also require one of these domains
 check-git-identity --commits origin/main..HEAD --domain ixid.net  # judge existing commits' authors
