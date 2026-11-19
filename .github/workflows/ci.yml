@@ -77,10 +77,17 @@ jobs:
 
   dogfood-commits:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # allow-bots on a push asks which pull request a commit merged
     steps:
       - uses: actions/checkout@v4
       # Default mode: this PR's or push's own commits (placeholder and machine-default checks only).
       - uses: ./
+      # allow-bots must not change the outcome for commits that are not a bot's own update.
+      - uses: ./
+        with:
+          allow-bots: dependabot, renovate
       # Range mode: a fresh commit with a machine-default email must be refused, a real one accepted.
       - name: Make a good and a bad commit
         run: |

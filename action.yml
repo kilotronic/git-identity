@@ -22,6 +22,18 @@ inputs:
       those commits. "identity" checks the identity git would stamp on this runner (the v1 behavior).
     required: false
     default: ""
+  allow-bots:
+    description: >-
+      Dependency bots whose own updates skip the author check, separated by commas, spaces or newlines:
+      "dependabot", "renovate". Empty (default) exempts nobody. Only a pull request the bot opened from its
+      branch, started by the bot and holding only its commits, or the merge of such a pull request on a push,
+      is skipped; a commit that only uses a bot's email is checked as usual. Needs `pull-requests: read`.
+    required: false
+    default: ""
+  token:
+    description: Token for asking GitHub which pull request a pushed commit merged (only used with `allow-bots`).
+    required: false
+    default: ${{ github.token }}
 
 runs:
   using: composite
@@ -36,4 +48,9 @@ runs:
         PR_HEAD: ${{ github.event.pull_request.head.sha }}
         PUSH_BEFORE: ${{ github.event.before }}
         PUSH_AFTER: ${{ github.event.after }}
+        ALLOW_BOTS: ${{ inputs.allow-bots }}
+        PR_USER: ${{ github.event.pull_request.user.login }}
+        HEAD_REF: ${{ github.head_ref }}
+        ACTOR: ${{ github.actor }}
+        GITHUB_TOKEN: ${{ inputs.token }}
       run: bash "$GITHUB_ACTION_PATH/src/git_identity/action.sh"
