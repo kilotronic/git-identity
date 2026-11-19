@@ -44,4 +44,11 @@ if [ "${#shas[@]}" -gt 0 ] || [ "$(git rev-parse --is-shallow-repository)" = tru
   "${fetch[@]}"
 fi
 
+# allow-bots: a listed bot's own update (its pull request, or the merge of one) skips the author check.
+# Only for the event's own commits; bots.py exits non-zero for anything else, and on any error.
+if [ -n "${ALLOW_BOTS//[[:space:],]/}" ] && [ -z "$COMMITS" ] &&
+  python3 "$GITHUB_ACTION_PATH/src/git_identity/bots.py" --bots "$ALLOW_BOTS" --range "$range"; then
+  exit 0
+fi
+
 exec "${check[@]}" --commits "$range" ${args[@]+"${args[@]}"}
