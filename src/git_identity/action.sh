@@ -62,7 +62,7 @@ if [ -n "$new" ]; then
   fi
   range="$after"
   if [ -z "$tip" ]; then
-    echo "git identity: a new branch with no default branch to compare with; checking its whole history"
+    echo "git identity: a new branch with no default branch to compare with (or it could not be fetched); checking its whole history"
   else
     first=$(git rev-list -1 "$tip..$after") # on its own line, so a git error stops the check
     if [ -z "$first" ]; then

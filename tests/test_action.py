@@ -113,7 +113,7 @@ def test_a_push_does_not_judge_commits_before_it(repo) -> None:
     )
 
 
-def test_a_new_branch_checks_its_tip(repo) -> None:
+def test_a_new_branch_checks_its_commits_main_lacks(repo) -> None:
     clone, _base, bad, _good = repo
     run = _action(
         clone,
@@ -266,18 +266,23 @@ def test_a_new_annotated_tag_off_main_checks_its_commits(branches) -> None:
     assert f"commit {c['bad'][:7]} author email" in run.stderr
 
 
-def test_a_new_branch_whose_commit_cannot_be_found_is_refused(branches) -> None:
+def test_a_new_ref_that_is_not_a_commit_is_refused(branches) -> None:
+    """A pushed ref git can fetch but can't read as a commit stops the check, not "nothing new"."""
     origin, _c = branches
+    work = origin.parent / "work"
+    tree = _git(work, "rev-parse", "HEAD^{tree}")
+    _git(work, "tag", "on-a-tree", tree)
+    _git(work, "push", "-q", "origin", "on-a-tree")
     run = _action(
-        origin.parent / "work",
+        work,
         EVENT="push",
         PUSH_BEFORE=ZERO,
-        PUSH_AFTER="1234567890" * 4,
-        PUSH_REF="refs/heads/gone",
+        PUSH_AFTER=tree,
+        PUSH_REF="refs/tags/on-a-tree",
         DEFAULT_BRANCH="main",
     )
-    assert run.returncode != 0
-    assert "nothing to check" not in run.stdout
+    assert run.returncode == 1
+    assert "is not in this checkout" in run.stdout
 
 
 @pytest.mark.parametrize("default", ["gone", ""])
