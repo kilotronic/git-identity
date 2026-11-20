@@ -13,8 +13,8 @@ Default identities break attribution: decisions recorded as "owner said" can't b
 commit authorship. The tool uses a denylist, not an allowlist, so without a domain list any real identity
 passes.
 
-It ships as a **GitHub Action**, which checks the commits in a pull request or push, a **pre-commit hook**,
-which checks this machine before you commit, and a **CLI**.
+It ships as a **GitHub Action**, which checks the commits in a pull request or push, a **prek / pre-commit
+hook**, which checks this machine before you commit, and a **CLI**.
 
 ## Use as a GitHub Action (checks the commits)
 
@@ -96,18 +96,23 @@ range. The pre-commit hook and CLI are unaffected.
 **v1 → v2:** v1 checked the runner's identity, not the commits. To keep that behavior, add
 `commits: identity`.
 
-## Use as a pre-commit hook (checks this machine)
+## Use as a prek or pre-commit hook (checks this machine)
+
+Works with [prek](https://github.com/j178/prek) and with [pre-commit](https://pre-commit.com). In your
+`.pre-commit-config.yaml`:
 
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    # Pin a dotted release tag (v2.1.0), not the floating Action major tag (v2).
-    rev: v2.1.0
+    rev: v2.2.0  # pin a release; not the floating Action major tag (v2)
     hooks:
       - id: git-identity
         args: [--domain=ixid.net,kilotronic.com]  # optional
         fail_fast: true
 ```
+
+Then `prek install` (or `pre-commit install`). The hook runs at the `pre-commit` stage, and also at
+`pre-merge-commit` and `manual` (`prek run git-identity --hook-stage manual`).
 
 The hook checks the identity git will actually stamp: `GIT_AUTHOR_*` / `GIT_COMMITTER_*` first, then
 `git var`. That means `git commit --author` overrides are validated too.
@@ -118,7 +123,7 @@ new commits. Use the Action to catch anything that slips past.
 ## Use as a CLI
 
 ```bash
-pip install git+https://github.com/kilotronic/git-identity.git@v2.1.0
+pip install git+https://github.com/kilotronic/git-identity.git@v2.2.0
 check-git-identity                                  # this machine; default identities only
 check-git-identity --domain ixid.net,kilotronic.com # also require one of these domains
 check-git-identity --commits origin/main..HEAD --domain ixid.net  # judge existing commits' authors
