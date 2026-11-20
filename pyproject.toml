@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kilotronic-git-identity"
-version = "2.1.0"
+version = "2.2.0"
 description = "Pre-commit hook & GitHub Action: refuse placeholder and machine-default git identities, and optionally emails outside a list of domains."
 readme = "README.md"
 requires-python = ">=3.11"

@@ -107,10 +107,28 @@ jobs:
       - name: Gate must refuse a machine-default author
         run: test "${{ steps.bad.outcome }}" = "failure"
 
+  # The prek hook, from this checkout: a real identity passes, a placeholder is refused.
+  prek-hook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install prek==0.5.11
+      - name: prek try-repo with a good and a bad identity
+        run: |
+          hooks="$GITHUB_WORKSPACE"
+          cd "$(mktemp -d)" && git init -q
+          echo hello > a.txt && git add a.txt
+          GIT_AUTHOR_NAME=Ada GIT_AUTHOR_EMAIL=ada@kilotronic.com GIT_COMMITTER_NAME=Ada \
+            GIT_COMMITTER_EMAIL=ada@kilotronic.com prek try-repo "$hooks" git-identity
+          if GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test \
+            GIT_COMMITTER_EMAIL=test@example.com prek try-repo "$hooks" git-identity; then
+            echo "::error::the placeholder identity was not refused"; exit 1
+          fi
+
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [test, dogfood-action, dogfood-refuse, dogfood-refuse-domain, dogfood-commits]
+    needs: [test, dogfood-action, dogfood-refuse, dogfood-refuse-domain, dogfood-commits, prek-hook]
     if: always()
     steps:
       - name: Verify required jobs succeeded
@@ -119,8 +137,9 @@ jobs:
             || [ "${{ needs.dogfood-action.result }}" != "success" ] \
             || [ "${{ needs.dogfood-refuse.result }}" != "success" ] \
             || [ "${{ needs.dogfood-refuse-domain.result }}" != "success" ] \
-            || [ "${{ needs.dogfood-commits.result }}" != "success" ]; then
-            echo "A required job did not succeed (test=${{ needs.test.result }}, dogfood-action=${{ needs.dogfood-action.result }}, dogfood-refuse=${{ needs.dogfood-refuse.result }}, dogfood-refuse-domain=${{ needs.dogfood-refuse-domain.result }}, dogfood-commits=${{ needs.dogfood-commits.result }})"
+            || [ "${{ needs.dogfood-commits.result }}" != "success" ] \
+            || [ "${{ needs.prek-hook.result }}" != "success" ]; then
+            echo "A required job did not succeed (test=${{ needs.test.result }}, dogfood-action=${{ needs.dogfood-action.result }}, dogfood-refuse=${{ needs.dogfood-refuse.result }}, dogfood-refuse-domain=${{ needs.dogfood-refuse-domain.result }}, dogfood-commits=${{ needs.dogfood-commits.result }}, prek-hook=${{ needs.prek-hook.result }})"
             exit 1
           fi
           echo "All required jobs succeeded."
