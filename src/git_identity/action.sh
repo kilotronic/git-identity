@@ -5,6 +5,7 @@ set -euo pipefail
 
 zero=0000000000000000000000000000000000000000
 range="$COMMITS"
+new=""
 if [ -z "$range" ]; then
   case "$EVENT" in
     pull_request | pull_request_target) range="$PR_BASE..$PR_HEAD" ;;
@@ -12,7 +13,7 @@ if [ -z "$range" ]; then
       if [ -z "$PUSH_AFTER" ] || [ "$PUSH_AFTER" = "$zero" ]; then
         range=identity # branch deletion: nothing to check
       elif [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "$zero" ]; then
-        range="$PUSH_AFTER^!" # new branch: just its tip
+        new=true range="$PUSH_AFTER" # new branch: worked out below, once fetched
       else
         range="$PUSH_BEFORE..$PUSH_AFTER"
       fi
@@ -42,6 +43,25 @@ if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
 fi
 if [ "${#shas[@]}" -gt 0 ] || [ "$(git rev-parse --is-shallow-repository)" = true ]; then
   "${fetch[@]}"
+fi
+
+# A push that created a branch (or tag): check its commits that the default branch doesn't have yet, the rule
+# secret-scan's pre-push hook uses. The default branch itself (a first push), or no default branch to compare
+# with, checks the whole history: nothing has been checked yet.
+if [ -n "$new" ]; then
+  default="${DEFAULT_BRANCH:-}" tip=""
+  if [ -n "$default" ] && [ "${PUSH_REF:-}" != "refs/heads/$default" ] &&
+    git fetch -q --no-tags --filter=tree:0 origin "+refs/heads/$default:refs/remotes/origin/$default" 2>/dev/null; then
+    tip=$(git rev-parse -q --verify "refs/remotes/origin/$default^{commit}" || true)
+  fi
+  if [ -z "$tip" ]; then
+    echo "git identity: a new branch with no default branch to compare with; checking its whole history"
+  elif [ -z "$(git rev-list -1 "$tip..$PUSH_AFTER")" ]; then
+    echo "git identity: a new branch with no commits that $default doesn't have; nothing to check"
+    exit 0
+  else
+    range="$tip..$PUSH_AFTER"
+  fi
 fi
 
 # allow-bots: a listed bot's own update (its pull request, or the merge of one) skips the author check.
