@@ -110,7 +110,7 @@ Works with [prek](https://github.com/j178/prek) and with [pre-commit](https://pr
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    rev: 76223f8d531904185d4bd46f66c65849cf0133f7  # v2.2.0
+    rev: ef36d47c998b7a247ac75d36f3e1ba56eb22b4ea  # v2.3.0
     hooks:
       - id: git-identity
         args: ["--domain=ixid.net,kilotronic.com"]  # optional; quoted, or YAML splits the list at the comma
@@ -129,7 +129,7 @@ new commits. Use the Action to catch anything that slips past.
 ## Use as a CLI
 
 ```bash
-pip install git+https://github.com/kilotronic/git-identity.git@v2.2.0
+pip install git+https://github.com/kilotronic/git-identity.git@v2.3.0
 check-git-identity                                  # this machine; default identities only
 check-git-identity --domain ixid.net,kilotronic.com # also require one of these domains
 check-git-identity --commits origin/main..HEAD --domain ixid.net  # judge existing commits' authors
