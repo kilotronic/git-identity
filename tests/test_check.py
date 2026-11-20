@@ -309,10 +309,89 @@ def test_main_accepts_a_domain_list(args: list[str]) -> None:
 def test_main_refuses_an_email_outside_the_domain_list(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    assert main(["--domain", "kilotronic.com,other.example"], environ=_ADA_ENV) == 1
     assert (
-        main(["--domain", "kilotronic.com,other.example"], environ=_ADA_ENV) == 1
+        "not in domain 'kilotronic.com' or 'other.example'" in capsys.readouterr().err
     )
+
+
+# Each placeholder email pattern on its own: a real name and a real local part, so no other rule can catch it.
+@pytest.mark.parametrize(
+    "email",
+    [
+        "ada@example.com",
+        "ada@example.org",
+        "ada@example.net",
+        "ADA@EXAMPLE.COM",
+        "ada@localhost",
+        "ada@localhost.localdomain",
+        "ada@(none)",
+        "root@ixid.net",
+        "ada@jays-mbp",
+        "ada@JAYS-MBP.LOCAL",
+        "ada@box.home",
+        "ada@box.internal",
+        "ada@devbox.bx.internal.cloudapp.net",
+        "ada@ip-10-0-0-1.ec2.internal",
+        "ada@vm-1.c.my-project.internal",
+        "ada@vm-1.C.MY-PROJECT.INTERNAL",
+        "ada@devbox.tail0000.ts.net",
+    ],
+)
+def test_each_placeholder_email_alone_is_reported(email: str) -> None:
+    found = problems("Ada Lovelace", email, "author")
+    assert found == [f"author email {email!r} is a placeholder"], found
+
+
+@pytest.mark.parametrize(
+    "name", ["root", "ROOT", "admin", "user", "ci", "unknown", "nobody", "placeholder"]
+)
+def test_each_placeholder_name_alone_is_reported(name: str) -> None:
+    assert problems(name, "ada@ixid.net", "author") == [
+        f"author name {name!r} is a placeholder"
+    ]
+
+
+def test_main_refuses_a_placeholder_committer_with_a_real_author(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    env = dict(_ADA_ENV, GIT_COMMITTER_NAME="ci", GIT_COMMITTER_EMAIL="ci@example.com")
+    assert main([], environ=env) == 1
     assert (
-        "not in domain 'kilotronic.com' or 'other.example'"
-        in capsys.readouterr().err
+        "committer email 'ci@example.com' is a placeholder" in capsys.readouterr().err
     )
+
+
+def test_main_refuses_a_committer_outside_the_domain() -> None:
+    env = dict(_ADA_ENV, GIT_COMMITTER_EMAIL="ada@gmail.com")
+    assert main(["--domain", "ixid.net"], environ=env) == 1
+
+
+def test_commits_mode_skips_merge_commits(tmp_path, monkeypatch) -> None:
+    import os
+    import subprocess
+
+    def git(*args: str, email: str = "ada@ixid.net") -> None:
+        env = {
+            "GIT_AUTHOR_NAME": "Ada Lovelace",
+            "GIT_AUTHOR_EMAIL": email,
+            "GIT_COMMITTER_NAME": "GitHub",
+            "GIT_COMMITTER_EMAIL": "noreply@github.com",
+            "HOME": str(tmp_path),
+            "PATH": os.environ["PATH"],
+        }
+        subprocess.run(
+            ["git", *args], cwd=tmp_path, env=env, check=True, capture_output=True
+        )
+
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "base")
+    git("tag", "base")
+    git("checkout", "-q", "-b", "side")
+    git("commit", "-q", "--allow-empty", "-m", "side")
+    git("checkout", "-q", "main")
+    git("commit", "-q", "--allow-empty", "-m", "main")
+    # GitHub's web merge: the merge commit's author is whoever clicked, here outside the domain.
+    git("merge", "-q", "--no-ff", "-m", "merge", "side", email="ada@gmail.com")
+    monkeypatch.chdir(tmp_path)
+    assert main(["--commits", "base..HEAD", "--domain", "ixid.net"]) == 0
