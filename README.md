@@ -107,7 +107,7 @@ repos:
     rev: 76223f8d531904185d4bd46f66c65849cf0133f7  # v2.2.0
     hooks:
       - id: git-identity
-        args: [--domain=ixid.net,kilotronic.com]  # optional
+        args: ["--domain=ixid.net,kilotronic.com"]  # optional; quoted, or YAML splits the list at the comma
         fail_fast: true
 ```
 
