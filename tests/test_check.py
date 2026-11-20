@@ -59,7 +59,7 @@ def test_domain_check_does_not_mask_placeholders() -> None:
         ("Test", "ada@ixid.net", "name"),
         ("Your Name", "ada@ixid.net", "name"),
         ("Ada", "test@example.com", "email"),
-        ("Ada", "ci@example.org", "email"),
+        ("Ada", "ci@other.example", "email"),
         ("Ada", "nobody@example.net", "email"),
         ("Ada", "root@localhost", "email"),
         ("Ada", "user@(none)", "email"),
