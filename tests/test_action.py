@@ -245,6 +245,41 @@ def test_a_new_default_branch_checks_its_whole_history(branches) -> None:
     assert f"commit {c['m1'][:7]} author email" in run.stderr
 
 
+def test_a_new_default_branch_with_no_ref_named_checks_its_whole_history(
+    branches,
+) -> None:
+    """Without PUSH_REF the action can't tell the default branch's own push apart, so it checks all."""
+    origin, c = branches
+    run = _new(origin, "main", "")
+    assert run.returncode == 1
+    assert f"commit {c['m1'][:7]} author email" in run.stderr
+
+
+def test_a_new_annotated_tag_off_main_checks_its_commits(branches) -> None:
+    origin, c = branches
+    work = origin.parent / "work"
+    _git(work, "tag", "-a", "-m", "v8", "v8", c["good"])
+    _git(work, "push", "-q", "origin", "v8")
+    tag = _git(work, "rev-parse", "v8")
+    run = _new(origin, "v8", "refs/tags/v8", PUSH_AFTER=tag)
+    assert run.returncode == 1
+    assert f"commit {c['bad'][:7]} author email" in run.stderr
+
+
+def test_a_new_branch_whose_commit_cannot_be_found_is_refused(branches) -> None:
+    origin, _c = branches
+    run = _action(
+        origin.parent / "work",
+        EVENT="push",
+        PUSH_BEFORE=ZERO,
+        PUSH_AFTER="1234567890" * 4,
+        PUSH_REF="refs/heads/gone",
+        DEFAULT_BRANCH="main",
+    )
+    assert run.returncode != 0
+    assert "nothing to check" not in run.stdout
+
+
 @pytest.mark.parametrize("default", ["gone", ""])
 def test_a_new_branch_with_no_default_to_compare_checks_its_whole_history(
     branches, default: str
