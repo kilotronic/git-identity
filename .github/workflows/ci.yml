@@ -6,6 +6,18 @@ on:
   pull_request:
 
 jobs:
+  # Refuse the organisation's private terms (the DATA_LEAK_DENYLIST secret) in this event's commits:
+  # added lines, file paths, commit messages and authors.
+  data-leak-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: kilotronic/data-leak-check@f1da8a7ce76bfaabd70ea815d9417fb691e95799 # v1.1.0
+        with:
+          denylist: ${{ secrets.DATA_LEAK_DENYLIST }}
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -128,7 +140,7 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [test, dogfood-action, dogfood-refuse, dogfood-refuse-domain, dogfood-commits, prek-hook]
+    needs: [test, dogfood-action, dogfood-refuse, dogfood-refuse-domain, dogfood-commits, prek-hook, data-leak-check]
     if: always()
     steps:
       - name: Verify required jobs succeeded
@@ -138,8 +150,9 @@ jobs:
             || [ "${{ needs.dogfood-refuse.result }}" != "success" ] \
             || [ "${{ needs.dogfood-refuse-domain.result }}" != "success" ] \
             || [ "${{ needs.dogfood-commits.result }}" != "success" ] \
-            || [ "${{ needs.prek-hook.result }}" != "success" ]; then
-            echo "A required job did not succeed (test=${{ needs.test.result }}, dogfood-action=${{ needs.dogfood-action.result }}, dogfood-refuse=${{ needs.dogfood-refuse.result }}, dogfood-refuse-domain=${{ needs.dogfood-refuse-domain.result }}, dogfood-commits=${{ needs.dogfood-commits.result }}, prek-hook=${{ needs.prek-hook.result }})"
+            || [ "${{ needs.prek-hook.result }}" != "success" ] \
+            || [ "${{ needs.data-leak-check.result }}" != "success" ]; then
+            echo "A required job did not succeed (test=${{ needs.test.result }}, dogfood-action=${{ needs.dogfood-action.result }}, dogfood-refuse=${{ needs.dogfood-refuse.result }}, dogfood-refuse-domain=${{ needs.dogfood-refuse-domain.result }}, dogfood-commits=${{ needs.dogfood-commits.result }}, prek-hook=${{ needs.prek-hook.result }}, data-leak-check=${{ needs.data-leak-check.result }})"
             exit 1
           fi
           echo "All required jobs succeeded."
