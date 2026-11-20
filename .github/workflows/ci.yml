@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           persist-credentials: false
-      - uses: kilotronic/secret-scan@814f89d661368214fc3fedb2bd583bef835a17cd # v1.2.0
+      - uses: kilotronic/secret-scan@2665d6f2f0260d3ae0defbedcce27fc63ad6a168 # v1.2.1
 
   # Shell scripts (shellcheck), workflows (actionlint), and actions and base images pinned by commit and
   # digest, from kilotronic/lint.

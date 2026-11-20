@@ -9,7 +9,7 @@ repos:
       - id: data-leak-check-commit-msg # commit-msg: the message
       - id: data-leak-check-pre-push   # pre-push: the commits being pushed
   - repo: https://github.com/kilotronic/secret-scan
-    rev: 814f89d661368214fc3fedb2bd583bef835a17cd  # v1.2.0
+    rev: 2665d6f2f0260d3ae0defbedcce27fc63ad6a168  # v1.2.1
     hooks:
       - id: secret-scan                # pre-commit: the staged changes
       - id: secret-scan-push           # pre-push: the commits being pushed
@@ -20,7 +20,7 @@ repos:
       - id: actionlint
       - id: pinned
   - repo: https://github.com/kilotronic/git-identity
-    rev: ef36d47c998b7a247ac75d36f3e1ba56eb22b4ea  # v2.3.0
+    rev: 5a7b91c3194870cf535ba8c37a6c93b19b5a933b  # v2.3.1
     hooks:
       - id: git-identity
         args: ["--domain=ixid.net,kilotronic.com"] # quoted: a bare comma would split the list
