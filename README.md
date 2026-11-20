@@ -129,7 +129,7 @@ new commits. Use the Action to catch anything that slips past.
 ## Use as a CLI
 
 ```bash
-pip install git+https://github.com/kilotronic/git-identity.git@v2.3.0
+pip install git+https://github.com/kilotronic/git-identity.git@v2.3.1
 check-git-identity                                  # this machine; default identities only
 check-git-identity --domain ixid.net,kilotronic.com # also require one of these domains
 check-git-identity --commits origin/main..HEAD --domain ixid.net  # judge existing commits' authors
