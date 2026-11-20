@@ -104,7 +104,7 @@ Works with [prek](https://github.com/j178/prek) and with [pre-commit](https://pr
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    rev: v2.2.0  # pin a release; not the floating Action major tag (v2)
+    rev: 76223f8d531904185d4bd46f66c65849cf0133f7  # v2.2.0
     hooks:
       - id: git-identity
         args: [--domain=ixid.net,kilotronic.com]  # optional
