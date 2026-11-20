@@ -59,7 +59,7 @@ def test_domain_check_does_not_mask_placeholders() -> None:
         ("Test", "ada@ixid.net", "name"),
         ("Your Name", "ada@ixid.net", "name"),
         ("Ada", "test@example.com", "email"),
-        ("Ada", "ci@example.org", "email"),
+        ("Ada", "ci@other.example", "email"),
         ("Ada", "nobody@example.net", "email"),
         ("Ada", "root@localhost", "email"),
         ("Ada", "user@(none)", "email"),
@@ -73,11 +73,11 @@ def test_domain_check_does_not_mask_placeholders() -> None:
         ("Jay", "jay@box.localdomain", "email"),
         ("Jay", "jay@box.lan", "email"),
         (
-            "Yao",
-            "azureuser@oa-shell.he2uy4z0vbxubjlxbr405flr3d.bx.internal.cloudapp.net",
+            "Ada",
+            "azureuser@devbox.0000000000000000000000000.bx.internal.cloudapp.net",
             "email",
         ),
-        ("Yao", "azureuser@oa-shell.tail3d71ab.ts.net", "email"),
+        ("Ada", "azureuser@devbox.tail0000.ts.net", "email"),
         ("Ec2", "ec2-user@ip-10-0-0-1.ec2.internal", "email"),
         ("Ec2", "ec2-user@ip-10-0-0-1.us-west-2.compute.internal", "email"),
         ("Gcp", "me@vm-1.c.my-project.internal", "email"),
@@ -310,9 +310,9 @@ def test_main_refuses_an_email_outside_the_domain_list(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert (
-        main(["--domain", "kilotronic.com,patentoaresponse.com"], environ=_ADA_ENV) == 1
+        main(["--domain", "kilotronic.com,other.example"], environ=_ADA_ENV) == 1
     )
     assert (
-        "not in domain 'kilotronic.com' or 'patentoaresponse.com'"
+        "not in domain 'kilotronic.com' or 'other.example'"
         in capsys.readouterr().err
     )
