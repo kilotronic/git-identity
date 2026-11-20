@@ -24,6 +24,7 @@ def _git(cwd: Path, *args: str, author: str = GOOD) -> str:
         "GIT_COMMITTER_EMAIL": "noreply@github.com",
         "HOME": str(cwd),
         "PATH": os.environ["PATH"],
+        "GIT_CONFIG_NOSYSTEM": "1",
     }
     return subprocess.run(
         ["git", *args], cwd=cwd, env=env, check=True, capture_output=True, text=True
@@ -52,6 +53,7 @@ def _action(clone: Path, **env: str) -> subprocess.CompletedProcess:
     full = {
         "PATH": os.environ["PATH"],
         "HOME": str(clone),
+        "GIT_CONFIG_NOSYSTEM": "1",
         "GITHUB_ACTION_PATH": str(ROOT),
         # The runner's own identity is real: only the commits can fail.
         "GIT_AUTHOR_NAME": "Ada",
@@ -114,6 +116,15 @@ def test_a_new_branch_checks_its_tip(repo) -> None:
     run = _action(clone, EVENT="push", PUSH_BEFORE=ZERO, PUSH_AFTER=bad)
     assert run.returncode == 1
     assert f"commit {bad[:7]} author email" in run.stderr
+
+
+def test_a_new_branch_checks_only_its_tip(repo) -> None:
+    """The README: a new branch's push checks just its tip, not the history beneath it."""
+    clone, _base, bad, good = repo
+    assert _git(clone, "rev-parse", f"{good}~1") == bad
+    run = _action(clone, EVENT="push", PUSH_BEFORE=ZERO, PUSH_AFTER=good)
+    assert run.returncode == 0, run.stderr
+    assert "1 commit(s)" in run.stdout
 
 
 def test_a_deleted_branch_checks_the_runner_identity(repo) -> None:
