@@ -67,6 +67,8 @@ def _action(clone: Path, **env: str) -> subprocess.CompletedProcess:
         "PR_HEAD": "",
         "PUSH_BEFORE": "",
         "PUSH_AFTER": "",
+        "PUSH_REF": "",
+        "DEFAULT_BRANCH": "",
         "ALLOW_BOTS": "",
         "PR_USER": "",
         "HEAD_REF": "",
@@ -113,18 +115,179 @@ def test_a_push_does_not_judge_commits_before_it(repo) -> None:
 
 def test_a_new_branch_checks_its_tip(repo) -> None:
     clone, _base, bad, _good = repo
-    run = _action(clone, EVENT="push", PUSH_BEFORE=ZERO, PUSH_AFTER=bad)
+    run = _action(
+        clone,
+        EVENT="push",
+        PUSH_BEFORE=ZERO,
+        PUSH_AFTER=bad,
+        PUSH_REF="refs/heads/feature",
+        DEFAULT_BRANCH="main",
+    )
     assert run.returncode == 1
     assert f"commit {bad[:7]} author email" in run.stderr
 
 
-def test_a_new_branch_checks_only_its_tip(repo) -> None:
-    """The README: a new branch's push checks just its tip, not the history beneath it."""
-    clone, _base, bad, good = repo
-    assert _git(clone, "rev-parse", f"{good}~1") == bad
-    run = _action(clone, EVENT="push", PUSH_BEFORE=ZERO, PUSH_AFTER=good)
+@pytest.fixture
+def branches(tmp_path: Path):
+    """An origin whose main is m0 <- m1, where m1 has a bad author main already has, and branches:
+    feature (m0 <- bad <- good), fresh (m1 <- c1), merged (feature plus a merge of main),
+    nothing-new (at m1). Returns (origin, commits by name)."""
+    work = tmp_path / "work"
+    work.mkdir()
+    _git(work, "init", "-q", "-b", "main")
+    c = {}
+
+    def commit(name: str, author: str = GOOD) -> None:
+        _git(work, "commit", "-q", "--allow-empty", "-m", name, author=author)
+        c[name] = _git(work, "rev-parse", "HEAD")
+
+    commit("m0")
+    _git(work, "checkout", "-q", "-b", "feature")
+    commit("bad", BAD)
+    commit("good")
+    _git(work, "checkout", "-q", "main")
+    commit("m1", BAD)
+    _git(work, "checkout", "-q", "-b", "fresh")
+    commit("c1")
+    _git(work, "checkout", "-q", "-b", "merged", "feature")
+    _git(work, "merge", "-q", "--no-ff", "-m", "merge", "main")
+    c["merge"] = _git(work, "rev-parse", "HEAD")
+    origin = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", str(origin))
+    _git(work, "remote", "add", "origin", str(origin))
+    _git(
+        work,
+        "push",
+        "-q",
+        "origin",
+        "main",
+        "feature",
+        "fresh",
+        "merged",
+        f"{c['m1']}:refs/heads/nothing-new",
+        f"{c['m1']}:refs/tags/v9",
+    )
+    return origin, c
+
+
+def _new(
+    origin: Path, branch: str, ref: str, **env: str
+) -> subprocess.CompletedProcess:
+    """The push that created ``ref`` at ``branch``'s tip, run in a shallow checkout of it (the
+    actions/checkout default)."""
+    clone = origin.parent / f"checkout-{branch}-{len(env)}"
+    _git(
+        origin.parent,
+        "clone",
+        "-q",
+        "--depth",
+        "1",
+        "--branch",
+        branch,
+        f"file://{origin}",
+        str(clone),
+    )
+    tip = _git(clone, "rev-parse", "HEAD")
+    full = {
+        "EVENT": "push",
+        "PUSH_BEFORE": ZERO,
+        "PUSH_AFTER": tip,
+        "PUSH_REF": ref,
+        "DEFAULT_BRANCH": "main",
+    }
+    full.update(env)
+    return _action(clone, **full)
+
+
+def test_a_new_branch_checks_every_commit_main_does_not_have(branches) -> None:
+    """Like the pre-push rule: a bad commit below a good tip is caught, from a shallow checkout."""
+    origin, c = branches
+    run = _new(origin, "feature", "refs/heads/feature")
+    assert run.returncode == 1
+    assert f"commit {c['bad'][:7]} author email" in run.stderr
+    assert c["m1"][:7] not in run.stderr
+
+
+def test_a_new_branch_does_not_judge_commits_main_has(branches) -> None:
+    origin, c = branches
+    run = _new(origin, "fresh", "refs/heads/fresh")
     assert run.returncode == 0, run.stderr
-    assert "1 commit(s)" in run.stdout
+    assert f"1 commit(s) in {c['m1']}..{c['c1']} OK" in run.stdout
+
+
+def test_a_new_branch_that_merged_main_checks_its_own_commits(branches) -> None:
+    origin, c = branches
+    run = _new(origin, "merged", "refs/heads/merged")
+    assert run.returncode == 1
+    assert f"commit {c['bad'][:7]} author email" in run.stderr
+    assert c["m1"][:7] not in run.stderr
+
+
+def test_a_new_branch_with_no_new_commits_checks_nothing(branches) -> None:
+    origin, _c = branches
+    run = _new(origin, "nothing-new", "refs/heads/nothing-new")
+    assert run.returncode == 0, run.stderr
+    assert "nothing to check" in run.stdout
+
+
+def test_a_new_tag_on_a_commit_main_has_checks_nothing(branches) -> None:
+    origin, _c = branches
+    run = _new(origin, "main", "refs/tags/v9")
+    assert run.returncode == 0, run.stderr
+    assert "nothing to check" in run.stdout
+
+
+def test_a_new_default_branch_checks_its_whole_history(branches) -> None:
+    """The first push of the default branch: nothing has been checked yet."""
+    origin, c = branches
+    run = _new(origin, "main", "refs/heads/main")
+    assert run.returncode == 1
+    assert f"commit {c['m1'][:7]} author email" in run.stderr
+
+
+def test_a_new_default_branch_with_no_ref_named_checks_its_whole_history(
+    branches,
+) -> None:
+    """Without PUSH_REF the action can't tell the default branch's own push apart, so it checks all."""
+    origin, c = branches
+    run = _new(origin, "main", "")
+    assert run.returncode == 1
+    assert f"commit {c['m1'][:7]} author email" in run.stderr
+
+
+def test_a_new_annotated_tag_off_main_checks_its_commits(branches) -> None:
+    origin, c = branches
+    work = origin.parent / "work"
+    _git(work, "tag", "-a", "-m", "v8", "v8", c["good"])
+    _git(work, "push", "-q", "origin", "v8")
+    tag = _git(work, "rev-parse", "v8")
+    run = _new(origin, "v8", "refs/tags/v8", PUSH_AFTER=tag)
+    assert run.returncode == 1
+    assert f"commit {c['bad'][:7]} author email" in run.stderr
+
+
+def test_a_new_branch_whose_commit_cannot_be_found_is_refused(branches) -> None:
+    origin, _c = branches
+    run = _action(
+        origin.parent / "work",
+        EVENT="push",
+        PUSH_BEFORE=ZERO,
+        PUSH_AFTER="1234567890" * 4,
+        PUSH_REF="refs/heads/gone",
+        DEFAULT_BRANCH="main",
+    )
+    assert run.returncode != 0
+    assert "nothing to check" not in run.stdout
+
+
+@pytest.mark.parametrize("default", ["gone", ""])
+def test_a_new_branch_with_no_default_to_compare_checks_its_whole_history(
+    branches, default: str
+) -> None:
+    origin, c = branches
+    run = _new(origin, "fresh", "refs/heads/fresh", DEFAULT_BRANCH=default)
+    assert run.returncode == 1
+    assert f"commit {c['m1'][:7]} author email" in run.stderr
 
 
 def test_a_deleted_branch_checks_the_runner_identity(repo) -> None:

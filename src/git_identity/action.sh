@@ -5,6 +5,7 @@ set -euo pipefail
 
 zero=0000000000000000000000000000000000000000
 range="$COMMITS"
+new=""
 if [ -z "$range" ]; then
   case "$EVENT" in
     pull_request | pull_request_target) range="$PR_BASE..$PR_HEAD" ;;
@@ -12,7 +13,7 @@ if [ -z "$range" ]; then
       if [ -z "$PUSH_AFTER" ] || [ "$PUSH_AFTER" = "$zero" ]; then
         range=identity # branch deletion: nothing to check
       elif [ -z "$PUSH_BEFORE" ] || [ "$PUSH_BEFORE" = "$zero" ]; then
-        range="$PUSH_AFTER^!" # new branch: just its tip
+        new=true range="$PUSH_AFTER" # new branch: worked out below, once fetched
       else
         range="$PUSH_BEFORE..$PUSH_AFTER"
       fi
@@ -42,6 +43,34 @@ if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
 fi
 if [ "${#shas[@]}" -gt 0 ] || [ "$(git rev-parse --is-shallow-repository)" = true ]; then
   "${fetch[@]}"
+fi
+
+# A push that created a branch (or tag): check its commits that the default branch doesn't have yet, the rule
+# secret-scan's pre-push hook uses. The default branch itself (a first push), or no default branch to compare
+# with, checks the whole history: nothing has been checked yet.
+if [ -n "$new" ]; then
+  # A tag push reports the annotated tag's own id; a commit that can't be found fails here, not as "nothing new".
+  if ! after=$(git rev-parse -q --verify "$PUSH_AFTER^{commit}"); then
+    echo "::error::git-identity: the pushed commit $PUSH_AFTER is not in this checkout"
+    exit 1
+  fi
+  default="${DEFAULT_BRANCH:-}" tip=""
+  # Without PUSH_REF the default branch's own push can't be told apart, so it falls to the whole history.
+  if [ -n "$default" ] && [ -n "${PUSH_REF:-}" ] && [ "$PUSH_REF" != "refs/heads/$default" ] &&
+    git fetch -q --no-tags --filter=tree:0 origin "+refs/heads/$default:refs/remotes/origin/$default"; then
+    tip=$(git rev-parse -q --verify "refs/remotes/origin/$default^{commit}" || true)
+  fi
+  range="$after"
+  if [ -z "$tip" ]; then
+    echo "git identity: a new branch with no default branch to compare with; checking its whole history"
+  else
+    first=$(git rev-list -1 "$tip..$after") # on its own line, so a git error stops the check
+    if [ -z "$first" ]; then
+      echo "git identity: a new branch with no commits that $default doesn't have (at $tip); nothing to check"
+      exit 0
+    fi
+    range="$tip..$after"
+  fi
 fi
 
 # allow-bots: a listed bot's own update (its pull request, or the merge of one) skips the author check.

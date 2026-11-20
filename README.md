@@ -33,7 +33,13 @@ jobs:
 By default, the Action checks the **authors of the commits the event brings in**:
 
 - On a pull request, every commit in the PR.
-- On a push, the newly pushed commits, or only the tip of a newly created branch.
+- On a push, the newly pushed commits.
+- On a push that creates a branch (or tag), its commits that the repository's default branch doesn't have
+  yet (as the default branch stands when the job runs). Commits the branch merged in from the default
+  branch are not checked again. A new branch with no such commits checks nothing. The default branch's
+  own first push (or a repository with no default branch to compare with) checks the whole history,
+  since nothing has been checked yet.
+- On other events (a deleted branch, schedule, manual runs), the identity git would stamp on the runner.
 
 It fetches the commit history it needs itself, as a cheap fetch of commits only, so the default shallow
 checkout is fine.
