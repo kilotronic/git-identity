@@ -45,7 +45,7 @@ inputs:
     default: ""
   skip:
     description: >-
-      Checks to skip, by id, separated by commas or spaces. Only commit-subject can be skipped. The author check and
+      Checks to skip, by id, separated by commas or spaces. Only commit-subject can be skipped (skippable.txt). The author check and
       the Claude session trailer check (public-no-leak) are floor checks: naming one prints a warning and it runs.
       An unknown id fails the run.
     required: false
