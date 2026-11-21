@@ -127,7 +127,7 @@ Works with [prek](https://github.com/j178/prek) and with [pre-commit](https://pr
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    rev: 5a7b91c3194870cf535ba8c37a6c93b19b5a933b # v2.3.1
+    rev: b0d54e809d81cabf61d357cbe519a9b9263b17cb # frozen: v2.4.0
     hooks:
       - id: git-identity
         args: ["--domain=ixid.net,kilotronic.com"] # optional; quoted, or YAML splits the list at the comma

@@ -207,18 +207,12 @@ jobs:
       ]
     if: always()
     steps:
+      # Every job in needs: is checked and must succeed, so a new job only has to be added there.
       - name: Verify required jobs succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          if [ "${{ needs.test.result }}" != "success" ] \
-            || [ "${{ needs.secret-scan.result }}" != "success" ] \
-            || [ "${{ needs.lint.result }}" != "success" ] \
-            || [ "${{ needs.dogfood-action.result }}" != "success" ] \
-            || [ "${{ needs.dogfood-refuse.result }}" != "success" ] \
-            || [ "${{ needs.dogfood-refuse-domain.result }}" != "success" ] \
-            || [ "${{ needs.dogfood-commits.result }}" != "success" ] \
-            || [ "${{ needs.prek-hook.result }}" != "success" ] \
-            || [ "${{ needs.data-leak-check.result }}" != "success" ]; then
-            echo "A required job did not succeed (test=${{ needs.test.result }}, secret-scan=${{ needs.secret-scan.result }}, lint=${{ needs.lint.result }}, dogfood-action=${{ needs.dogfood-action.result }}, dogfood-refuse=${{ needs.dogfood-refuse.result }}, dogfood-refuse-domain=${{ needs.dogfood-refuse-domain.result }}, dogfood-commits=${{ needs.dogfood-commits.result }}, prek-hook=${{ needs.prek-hook.result }}, data-leak-check=${{ needs.data-leak-check.result }})"
-            exit 1
-          fi
-          echo "All required jobs succeeded."
+          echo "results: $RESULTS"
+          for r in $RESULTS; do
+            [[ "$r" = success ]] || exit 1
+          done
