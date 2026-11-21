@@ -13,8 +13,22 @@ Default identities break attribution: decisions recorded as "owner said" can't b
 commit authorship. The tool uses a denylist, not an allowlist, so without a domain list any real identity
 passes.
 
-It ships as a **GitHub Action**, which checks the commits in a pull request or push, a **prek / pre-commit
-hook**, which checks this machine before you commit, and a **CLI**.
+It also checks **commit messages**, over the same commits in CI and as `commit-msg` hooks:
+
+- **commit-subject** (opt-in): the subject reads `<type>: <imperative summary>`, with `type(scope):` and
+  `type!:` allowed, and a type from a list you can set (default `feat`, `fix`, `refactor`, `perf`, `test`,
+  `docs`, `build`, `ci`, `chore`, `style`, `revert`). "added" or "adds" is refused; say "add". git's own
+  `Merge …`, `Revert "…"` and `fixup!`/`squash!`/`amend!` subjects pass. `--require-body` also wants a paragraph
+  saying why.
+- **session-trailer** (always on): in a **public** repository, no `Claude-Session` trailer line in any commit,
+  merge commits included, which links a private agent session. A private repository passes.
+
+The message checks run on pull request and push events, over the commits the author check reads. A dependency
+bot's own update that `allow-bots` lets through skips them too; other events (and `commits: identity`) check
+only the runner's identity.
+
+It ships as a **GitHub Action**, which checks the commits in a pull request or push, **prek / pre-commit
+hooks**, which check this machine and each message before you commit, and a **CLI**.
 
 ## Use as a GitHub Action (checks the commits)
 
@@ -59,6 +73,9 @@ Inputs:
 | `domains` | empty (any) | Allowed email domains, separated by commas, spaces or newlines |
 | `commits` | empty (this event's commits) | A git range such as `main..HEAD`, or `identity` to check the identity git would stamp on the runner (the v1 behavior) |
 | `allow-bots` | empty (nobody) | Dependency bots whose own updates skip the check: `dependabot`, `renovate` (see below) |
+| `commit-subject` | `false` | `true` also checks each commit's subject (see above) |
+| `commit-types` | empty (the default list) | The types `commit-subject` allows, separated by commas or spaces |
+| `skip` | empty | Checks to skip, by id: only `commit-subject`. The author check and the session trailer check are the floor: naming one warns and it runs; an unknown id fails |
 | `token` | `github.token` | Used only with `allow-bots`, to ask GitHub which pull request a pushed commit merged |
 | `domain` | empty | Deprecated v1 alias; it is combined with `domains` |
 
@@ -117,7 +134,34 @@ repos:
         fail_fast: true
 ```
 
-Then `prek install` (or `pre-commit install`). The hook runs at the `pre-commit` stage, and also at
+The commit-message hooks run at the `commit-msg` stage:
+
+```yaml
+default_install_hook_types: [pre-commit, commit-msg]
+repos:
+  - repo: https://github.com/kilotronic/git-identity
+    rev: <commit of the release>  # frozen: v2.4.0
+    hooks:
+      - id: git-identity
+      - id: commit-subject
+        # args: [--types=feat,fix,docs, --require-body]
+      - id: session-trailer
+```
+
+`session-trailer` needs the repository's visibility: `$KILOTRONIC_VISIBILITY` when set (the Action passes
+the event's), else `gh repo view` once a day, kept in the clone's git directory (`kilotronic-visibility`, the
+same file kilotronic/lint's hooks use). Offline or without `gh` the visibility is unknown, and the hook passes
+with a note: it refuses only when it knows the repository is public.
+
+Two gaps the hooks can't close, because a hook can't tell `git commit -m` from the editor: with `-m`, git keeps
+`#` lines, so a subject typed as `# ...` or a trailer hidden after a fake `commit -v` diff passes the hook. The
+Action reads the stored commits and refuses both.
+
+`commit-subject` is opt-in: list the hook, or set the Action's `commit-subject: true`. `skip: commit-subject`
+exists for a workflow shared by several repositories that sets `commit-subject: true`: one repository can
+leave it out. The session trailer check is a floor check (`public-no-leak`): it can't be skipped.
+
+Then `prek install` (or `pre-commit install`). The `git-identity` hook runs at the `pre-commit` stage, and also at
 `pre-merge-commit` and `manual` (`prek run git-identity --hook-stage manual`).
 
 The hook checks the identity git will actually stamp: `GIT_AUTHOR_*` / `GIT_COMMITTER_*` first, then
@@ -133,6 +177,8 @@ pip install git+https://github.com/kilotronic/git-identity.git@v2.3.1
 check-git-identity                                  # this machine; default identities only
 check-git-identity --domain ixid.net,kilotronic.com # also require one of these domains
 check-git-identity --commits origin/main..HEAD --domain ixid.net  # judge existing commits' authors
+check-commit-subject --commits origin/main..HEAD --types feat,fix  # judge existing commits' subjects
+check-session-trailer --commits origin/main..HEAD                  # no Claude-Session line if public
 ```
 
 `--domain` can be repeated or comma-separated.

@@ -4,6 +4,11 @@
 
 from __future__ import annotations
 
+# The trailer is built from two halves so this public repository never holds it whole (its own
+# data-leak check refuses the literal).
+T = "Claude" + chr(45) + "Session:"
+T_LOWER = T.lower()
+
 import os
 import subprocess
 from pathlib import Path
@@ -355,3 +360,114 @@ def test_allow_bots_does_not_apply_to_an_explicit_range(repo) -> None:
     )
     assert run.returncode == 1
     assert "not in domain 'ixid.net'" in run.stderr
+
+
+# --- the commit-message checks the Action also runs over the same commits
+
+
+def _commit(clone: Path, message: str) -> str:
+    _git(clone, "commit", "-q", "--allow-empty", "-m", message)
+    return _git(clone, "rev-parse", "HEAD")
+
+
+def test_commit_subject_is_off_unless_asked(repo) -> None:
+    clone, _base, bad, good = repo
+    assert _action(clone, PR_BASE=bad, PR_HEAD=good).returncode == 0
+
+
+def test_commit_subject_refuses_a_bad_subject(repo) -> None:
+    clone, _base, bad, good = repo
+    run = _action(clone, PR_BASE=bad, PR_HEAD=good, COMMIT_SUBJECT="true")
+    assert run.returncode == 1
+    assert f"commit {good[:7]}: subject is not" in run.stdout
+
+
+def test_commit_subject_passes_good_subjects_and_reads_types(repo) -> None:
+    clone, _base, _bad, good = repo
+    tip = _commit(clone, "feat: add x")
+    assert (
+        _action(clone, PR_BASE=good, PR_HEAD=tip, COMMIT_SUBJECT="true").returncode == 0
+    )
+    wip = _commit(clone, "wip: add y")
+    assert (
+        _action(clone, PR_BASE=tip, PR_HEAD=wip, COMMIT_SUBJECT="true").returncode == 1
+    )
+    assert (
+        _action(
+            clone,
+            PR_BASE=tip,
+            PR_HEAD=wip,
+            COMMIT_SUBJECT="true",
+            COMMIT_TYPES="wip, feat",
+        ).returncode
+        == 0
+    )
+
+
+SESSION = (
+    f"feat: add x\n\nCo-Authored-By: A <ada@ixid.net>\n{T} https://example.test/s1"
+)
+
+
+def test_session_trailer_refused_on_a_public_repository(repo) -> None:
+    clone, _base, _bad, good = repo
+    tip = _commit(clone, SESSION)
+    run = _action(clone, PR_BASE=good, PR_HEAD=tip, VISIBILITY="public")
+    assert run.returncode == 1
+    assert f"commit {tip[:7]}: line 4: a Claude-Session trailer" in run.stdout
+
+
+@pytest.mark.parametrize("vis", ["private", "internal"])
+def test_session_trailer_allowed_on_a_private_repository(repo, vis) -> None:
+    clone, _base, _bad, good = repo
+    tip = _commit(clone, SESSION)
+    assert _action(clone, PR_BASE=good, PR_HEAD=tip, VISIBILITY=vis).returncode == 0
+
+
+def test_session_trailer_cannot_be_skipped(repo) -> None:
+    clone, _base, _bad, good = repo
+    tip = _commit(clone, SESSION)
+    for skip in ("session-trailer", "public-no-leak"):
+        run = _action(
+            clone, PR_BASE=good, PR_HEAD=tip, VISIBILITY="public", SKIP_CHECKS=skip
+        )
+        assert run.returncode == 1
+        assert "floor check" in run.stdout
+
+
+def test_commit_subject_can_be_skipped(repo) -> None:
+    clone, _base, bad, good = repo
+    run = _action(
+        clone,
+        PR_BASE=bad,
+        PR_HEAD=good,
+        COMMIT_SUBJECT="true",
+        SKIP_CHECKS="commit-subject",
+    )
+    assert run.returncode == 0, run.stdout
+    assert "commit-subject: skipped" in run.stdout
+
+
+def test_an_unknown_skip_id_fails(repo) -> None:
+    clone, _base, bad, good = repo
+    run = _action(clone, PR_BASE=bad, PR_HEAD=good, SKIP_CHECKS="commit-subjet")
+    assert run.returncode == 1
+    assert "unknown check id" in run.stdout
+
+
+def test_every_check_reports_in_one_run(repo) -> None:
+    clone, base, bad, _good = repo
+    tip = _commit(clone, SESSION.replace("feat: add x", "added x"))
+    run = _action(
+        clone, PR_BASE=base, PR_HEAD=tip, VISIBILITY="public", COMMIT_SUBJECT="true"
+    )
+    assert run.returncode == 1
+    assert f"commit {bad[:7]} author email" in run.stderr
+    assert f"commit {tip[:7]}: subject is not" in run.stdout
+    assert f"commit {tip[:7]}: line 4: a Claude-Session trailer" in run.stdout
+
+
+def test_message_checks_skip_the_runner_identity_events(repo) -> None:
+    clone, _base, _bad, _good = repo
+    run = _action(clone, EVENT="schedule", VISIBILITY="public", COMMIT_SUBJECT="true")
+    assert run.returncode == 0, run.stdout + run.stderr
