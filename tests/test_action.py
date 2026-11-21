@@ -532,6 +532,29 @@ def test_an_id_skippable_txt_lists_but_nothing_skips_fails(repo, tmp_path) -> No
     assert "new-check" in run.stdout and "can't skip" in run.stdout
 
 
+def test_a_bad_line_in_skippable_txt_fails_a_skip(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, "commit-subject optin\n")
+    run = _action(
+        clone,
+        PR_BASE=bad,
+        PR_HEAD=good,
+        SKIP_CHECKS="commit-subject",
+        GITHUB_ACTION_PATH=str(home),
+    )
+    assert run.returncode == 1
+    assert "bad line" in run.stdout and "optin" in run.stdout
+
+
+def test_an_empty_list_says_nothing_can_be_skipped(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, "")
+    run = _action(
+        clone, PR_BASE=bad, PR_HEAD=good, SKIP_CHECKS="x", GITHUB_ACTION_PATH=str(home)
+    )
+    assert run.returncode == 1 and "nothing can be skipped" in run.stdout
+
+
 def test_every_check_reports_in_one_run(repo) -> None:
     clone, base, bad, _good = repo
     tip = _commit(clone, SESSION.replace("feat: add x", "added x"))

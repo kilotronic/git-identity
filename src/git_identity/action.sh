@@ -11,8 +11,11 @@ subject="${COMMIT_SUBJECT:-false}"
 floor=" session-trailer public-no-leak git-identity real-author "
 skippable_file="$GITHUB_ACTION_PATH/skippable.txt"
 skippable=" "
+bad_line=""
 if [ -r "$skippable_file" ]; then
-  skippable+=$(awk '{ sub(/\r$/, "") } $1 !~ /^#/ && NF { printf "%s ", $1 }' "$skippable_file")
+  # Each line: `<id>` or `<id> opt-in`; # comments. A BOM or CRLF is dropped.
+  skippable+=$(awk '{ sub(/^\xef\xbb\xbf/, ""); sub(/\r$/, "") } $1 !~ /^#/ && NF { printf "%s ", $1 }' "$skippable_file")
+  bad_line=$(awk '{ sub(/^\xef\xbb\xbf/, ""); sub(/\r$/, "") } $1 !~ /^#/ && NF && (NF > 2 || (NF == 2 && $2 != "opt-in")) { print; exit }' "$skippable_file")
 fi
 set -f # the ids are words, never file patterns
 skips="${SKIP_CHECKS:-}"
@@ -22,8 +25,12 @@ for id in ${skips//,/ }; do
   elif [ ! -r "$skippable_file" ]; then
     echo "::error::git-identity: can't read $skippable_file, so nothing can be skipped (skip: $id)"
     exit 1
+  elif [ -n "$bad_line" ]; then
+    echo "::error::git-identity: skippable.txt: bad line (want <id> [opt-in]): $bad_line"
+    exit 1
   elif [[ "$skippable" != *" $id "* ]]; then
-    echo "::error::git-identity: unknown check id in skip: $id (only these can be skipped:${skippable% })"
+    known=${skippable% }
+    echo "::error::git-identity: unknown check id in skip: $id (${known:+only these can be skipped:}${known:-nothing can be skipped})"
     exit 1
   elif [ "$id" = commit-subject ]; then
     [ "$subject" = true ] && echo "commit-subject: skipped (skip: $id)"
