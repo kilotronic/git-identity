@@ -176,7 +176,18 @@ jobs:
   ci:
     name: ci
     runs-on: ubuntu-latest
-    needs: [test, secret-scan, lint, dogfood-action, dogfood-refuse, dogfood-refuse-domain, dogfood-commits, prek-hook, data-leak-check]
+    needs:
+      [
+        test,
+        secret-scan,
+        lint,
+        dogfood-action,
+        dogfood-refuse,
+        dogfood-refuse-domain,
+        dogfood-commits,
+        prek-hook,
+        data-leak-check,
+      ]
     if: always()
     steps:
       - name: Verify required jobs succeeded
