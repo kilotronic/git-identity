@@ -160,6 +160,9 @@ Action reads the stored commits and refuses both.
 `commit-subject` is opt-in: list the hook, or set the Action's `commit-subject: true`. `skip: commit-subject`
 exists for a workflow shared by several repositories that sets `commit-subject: true`: one repository can
 leave it out. The session trailer check is a floor check (`public-no-leak`): it can't be skipped.
+[`skippable.txt`](skippable.txt) is the list of ids `skip` takes, marked `opt-in` where a check runs only when
+turned on. The Action reads it, and so does the owner's nightly settings sweep (at the commit a repository pins),
+so the two can't disagree.
 
 Then `prek install` (or `pre-commit install`). The `git-identity` hook runs at the `pre-commit` stage, and also at
 `pre-merge-commit` and `manual` (`prek run git-identity --hook-stage manual`).

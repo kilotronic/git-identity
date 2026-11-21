@@ -1,0 +1,6 @@
+# The check ids a repository may skip with the Action's `skip:` input. One per line, as `<id>` or `<id> opt-in`
+# (a check that runs only when a repository turns it on; it can be skipped all the same, and the owner's settings
+# sweep then wants no skip from a repository that never turned it on). The floor checks (the author check,
+# session-trailer) can't be skipped, listed here or not. src/git_identity/action.sh reads this file, and so does
+# that sweep, at the commit a repository pins.
+commit-subject opt-in

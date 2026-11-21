@@ -455,6 +455,106 @@ def test_an_unknown_skip_id_fails(repo) -> None:
     assert "unknown check id" in run.stdout
 
 
+def _action_home(tmp: Path, skippable: str | None) -> Path:
+    """An action directory sharing this repo's src/, with its own skippable.txt (or none)."""
+    home = tmp / "action"
+    home.mkdir()
+    (home / "src").symlink_to(ROOT / "src")
+    if skippable is not None:
+        (home / "skippable.txt").write_text(skippable)
+    return home
+
+
+def test_skippable_txt_lists_commit_subject_as_opt_in() -> None:
+    lines = [
+        ln.split()
+        for ln in (ROOT / "skippable.txt").read_text().splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    assert lines == [["commit-subject", "opt-in"]]
+
+
+def test_the_skippable_ids_come_from_skippable_txt(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, "# nothing can be skipped\n")
+    run = _action(
+        clone,
+        PR_BASE=bad,
+        PR_HEAD=good,
+        SKIP_CHECKS="commit-subject",
+        GITHUB_ACTION_PATH=str(home),
+    )
+    assert run.returncode == 1
+    assert "unknown check id in skip: commit-subject" in run.stdout
+
+
+def test_a_missing_skippable_txt_is_named(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, None)
+    run = _action(
+        clone,
+        PR_BASE=bad,
+        PR_HEAD=good,
+        SKIP_CHECKS="commit-subject",
+        GITHUB_ACTION_PATH=str(home),
+    )
+    assert run.returncode == 1
+    assert "skippable.txt" in run.stdout
+
+
+def test_a_floor_id_in_skippable_txt_still_runs(repo, tmp_path) -> None:
+    clone, _base, _bad, good = repo
+    tip = _commit(clone, SESSION)
+    home = _action_home(tmp_path, "commit-subject opt-in\nsession-trailer\n")
+    run = _action(
+        clone,
+        PR_BASE=good,
+        PR_HEAD=tip,
+        VISIBILITY="public",
+        SKIP_CHECKS="session-trailer",
+        GITHUB_ACTION_PATH=str(home),
+    )
+    assert run.returncode == 1
+    assert "floor check" in run.stdout
+
+
+def test_an_id_skippable_txt_lists_but_nothing_skips_fails(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, "commit-subject opt-in\nnew-check\n")
+    run = _action(
+        clone,
+        PR_BASE=bad,
+        PR_HEAD=good,
+        SKIP_CHECKS="new-check",
+        GITHUB_ACTION_PATH=str(home),
+    )
+    assert run.returncode == 1
+    assert "new-check" in run.stdout and "can't skip" in run.stdout
+
+
+def test_a_bad_line_in_skippable_txt_fails_a_skip(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, "commit-subject optin\n")
+    run = _action(
+        clone,
+        PR_BASE=bad,
+        PR_HEAD=good,
+        SKIP_CHECKS="commit-subject",
+        GITHUB_ACTION_PATH=str(home),
+    )
+    assert run.returncode == 1
+    assert "bad line" in run.stdout and "optin" in run.stdout
+
+
+def test_an_empty_list_says_nothing_can_be_skipped(repo, tmp_path) -> None:
+    clone, _base, bad, good = repo
+    home = _action_home(tmp_path, "")
+    run = _action(
+        clone, PR_BASE=bad, PR_HEAD=good, SKIP_CHECKS="x", GITHUB_ACTION_PATH=str(home)
+    )
+    assert run.returncode == 1 and "nothing can be skipped" in run.stdout
+
+
 def test_every_check_reports_in_one_run(repo) -> None:
     clone, base, bad, _good = repo
     tip = _commit(clone, SESSION.replace("feat: add x", "added x"))

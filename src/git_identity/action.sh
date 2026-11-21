@@ -4,25 +4,41 @@
 # messages (the subject when asked; no Claude-Session trailer in a public repository). Inputs arrive as env vars (action.yml).
 set -euo pipefail
 
-# skip: only commit-subject can be skipped. The author check and session-trailer (public-no-leak) are floor
-# checks: naming one warns and it runs. An unknown id fails, so a typo can't look like a skip.
+# skip: only the ids in skippable.txt can be skipped (today commit-subject). The author check and session-trailer
+# (public-no-leak) are floor checks: naming one warns and it runs, even if skippable.txt lists it. An unknown id
+# fails, so a typo can't look like a skip.
 subject="${COMMIT_SUBJECT:-false}"
+floor=" session-trailer public-no-leak git-identity real-author "
+skippable_file="$GITHUB_ACTION_PATH/skippable.txt"
+skippable=" "
+bad_line=""
+if [ -r "$skippable_file" ]; then
+  # Each line: `<id>` or `<id> opt-in`; # comments. A BOM or CRLF is dropped.
+  skippable+=$(awk '{ sub(/^\xef\xbb\xbf/, ""); sub(/\r$/, "") } $1 !~ /^#/ && NF { printf "%s ", $1 }' "$skippable_file")
+  bad_line=$(awk '{ sub(/^\xef\xbb\xbf/, ""); sub(/\r$/, "") } $1 !~ /^#/ && NF && (NF > 2 || (NF == 2 && $2 != "opt-in")) { print; exit }' "$skippable_file")
+fi
 set -f # the ids are words, never file patterns
 skips="${SKIP_CHECKS:-}"
 for id in ${skips//,/ }; do
-  case "$id" in
-    commit-subject)
-      [ "$subject" = true ] && echo "commit-subject: skipped (skip: $id)"
-      subject=false
-      ;;
-    session-trailer | public-no-leak | git-identity | real-author)
-      echo "::warning::git-identity: $id is a floor check; it can't be skipped, so it runs"
-      ;;
-    *)
-      echo "::error::git-identity: unknown check id in skip: $id (only commit-subject can be skipped)"
-      exit 1
-      ;;
-  esac
+  if [[ "$floor" == *" $id "* ]]; then
+    echo "::warning::git-identity: $id is a floor check; it can't be skipped, so it runs"
+  elif [ ! -r "$skippable_file" ]; then
+    echo "::error::git-identity: can't read $skippable_file, so nothing can be skipped (skip: $id)"
+    exit 1
+  elif [ -n "$bad_line" ]; then
+    echo "::error::git-identity: skippable.txt: bad line (want <id> [opt-in]): $bad_line"
+    exit 1
+  elif [[ "$skippable" != *" $id "* ]]; then
+    known=${skippable% }
+    echo "::error::git-identity: unknown check id in skip: $id (${known:+only these can be skipped:}${known:-nothing can be skipped})"
+    exit 1
+  elif [ "$id" = commit-subject ]; then
+    [ "$subject" = true ] && echo "commit-subject: skipped (skip: $id)"
+    subject=false
+  else
+    echo "::error::git-identity: skippable.txt lists $id, but this version can't skip it"
+    exit 1
+  fi
 done
 set +f
 
