@@ -1,7 +1,27 @@
 #!/usr/bin/env bash
 # GitHub Action entry point: work out which commits this event brings in, make sure their history is present
-# (actions/checkout is shallow by default), then run check.py on them. Inputs arrive as env vars (action.yml).
+# (actions/checkout is shallow by default), then run check.py on their authors and commit_msg.py on their
+# messages (the subject when asked; no Claude-Session trailer in a public repository). Inputs arrive as env vars (action.yml).
 set -euo pipefail
+
+# skip: only commit-subject can be skipped. The author check and session-trailer (public-no-leak) are floor
+# checks: naming one warns and it runs. An unknown id fails, so a typo can't look like a skip.
+subject="${COMMIT_SUBJECT:-false}"
+set -f # the ids are words, never file patterns
+skips="${SKIP_CHECKS:-}"
+for id in ${skips//,/ }; do
+  case "$id" in
+    commit-subject)
+      [ "$subject" = true ] && echo "commit-subject: skipped (skip: $id)"
+      subject=false ;;
+    session-trailer | public-no-leak | git-identity | real-author)
+      echo "::warning::git-identity: $id is a floor check; it can't be skipped, so it runs" ;;
+    *)
+      echo "::error::git-identity: unknown check id in skip: $id (only commit-subject can be skipped)"
+      exit 1 ;;
+  esac
+done
+set +f
 
 zero=0000000000000000000000000000000000000000
 range="$COMMITS"
@@ -80,4 +100,12 @@ if [ -n "${ALLOW_BOTS//[[:space:],]/}" ] && [ -z "$COMMITS" ] &&
   exit 0
 fi
 
-exec "${check[@]}" --commits "$range" ${args[@]+"${args[@]}"}
+# The authors, then the same commits' messages: every check runs, so one run shows every finding.
+bad=0
+"${check[@]}" --commits "$range" ${args[@]+"${args[@]}"} || bad=1
+msg=("python3" "$GITHUB_ACTION_PATH/src/git_identity/commit_msg.py")
+if [ "$subject" = true ]; then
+  "${msg[@]}" subject --commits "$range" ${COMMIT_TYPES:+--types "$COMMIT_TYPES"} || bad=1
+fi
+KILOTRONIC_VISIBILITY="${VISIBILITY:-}" "${msg[@]}" trailer --commits "$range" || bad=1
+exit "$bad"

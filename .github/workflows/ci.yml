@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   # Refuse the organisation's private terms (the DATA_LEAK_DENYLIST secret) in this event's commits:
   # added lines, file paths, commit messages and authors.
@@ -155,6 +158,19 @@ jobs:
           if GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test \
             GIT_COMMITTER_EMAIL=test@example.com prek try-repo "$hooks" git-identity; then
             echo "::error::the placeholder identity was not refused"; exit 1
+          fi
+      - name: prek try-repo with good and bad commit messages
+        run: |
+          hooks="$GITHUB_WORKSPACE"
+          cd "$(mktemp -d)" && git init -q
+          printf 'feat: add x\n' > good && printf 'added x\n' > bad
+          printf 'feat: add x\n\nClaude-%s: https://example.test/s1\n' Session > session
+          msg() { prek try-repo "$hooks" "$1" --stage commit-msg --commit-msg-filename "$2"; }
+          msg commit-subject good
+          if msg commit-subject bad; then echo "::error::a bad subject was not refused"; exit 1; fi
+          KILOTRONIC_VISIBILITY=private msg session-trailer session
+          if KILOTRONIC_VISIBILITY=public msg session-trailer session; then
+            echo "::error::a Claude-Session trailer in a public repository was not refused"; exit 1
           fi
 
   ci:

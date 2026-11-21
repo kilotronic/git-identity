@@ -6,3 +6,19 @@
   always_run: true
   pass_filenames: false
   stages: [pre-commit, pre-merge-commit, manual]
+- id: commit-subject
+  name: "Commit subject reads <type>: <imperative summary>"
+  description: >-
+    The subject is `<type>: <imperative summary>` with a type from --types (default feat, fix, refactor, perf, test,
+    docs, build, ci, chore, style, revert); --require-body also wants a paragraph saying why. Opt-in: list the hook to use it.
+  entry: check-commit-subject
+  language: python
+  stages: [commit-msg]
+- id: session-trailer
+  name: No Claude-Session trailer in a public repository
+  description: >-
+    Refuse a commit message with a Claude-Session line when the repository is public (asked of gh once a day and
+    cached in the clone); a private repository, or an unknown visibility (offline), passes.
+  entry: check-session-trailer
+  language: python
+  stages: [commit-msg]
