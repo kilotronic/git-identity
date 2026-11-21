@@ -13,12 +13,15 @@ for id in ${skips//,/ }; do
   case "$id" in
     commit-subject)
       [ "$subject" = true ] && echo "commit-subject: skipped (skip: $id)"
-      subject=false ;;
+      subject=false
+      ;;
     session-trailer | public-no-leak | git-identity | real-author)
-      echo "::warning::git-identity: $id is a floor check; it can't be skipped, so it runs" ;;
+      echo "::warning::git-identity: $id is a floor check; it can't be skipped, so it runs"
+      ;;
     *)
       echo "::error::git-identity: unknown check id in skip: $id (only commit-subject can be skipped)"
-      exit 1 ;;
+      exit 1
+      ;;
   esac
 done
 set +f
@@ -76,8 +79,8 @@ if [ -n "$new" ]; then
   fi
   default="${DEFAULT_BRANCH:-}" tip=""
   # Without PUSH_REF the default branch's own push can't be told apart, so it falls to the whole history.
-  if [ -n "$default" ] && [ -n "${PUSH_REF:-}" ] && [ "$PUSH_REF" != "refs/heads/$default" ] &&
-    git fetch -q --no-tags --filter=tree:0 origin "+refs/heads/$default:refs/remotes/origin/$default"; then
+  if [ -n "$default" ] && [ -n "${PUSH_REF:-}" ] && [ "$PUSH_REF" != "refs/heads/$default" ] \
+    && git fetch -q --no-tags --filter=tree:0 origin "+refs/heads/$default:refs/remotes/origin/$default"; then
     tip=$(git rev-parse -q --verify "refs/remotes/origin/$default^{commit}" || true)
   fi
   range="$after"
@@ -95,8 +98,8 @@ fi
 
 # allow-bots: a listed bot's own update (its pull request, or the merge of one) skips the author check.
 # Only for the event's own commits; bots.py exits non-zero for anything else, and on any error.
-if [ -n "${ALLOW_BOTS//[[:space:],]/}" ] && [ -z "$COMMITS" ] &&
-  python3 "$GITHUB_ACTION_PATH/src/git_identity/bots.py" --bots "$ALLOW_BOTS" --range "$range"; then
+if [ -n "${ALLOW_BOTS//[[:space:],]/}" ] && [ -z "$COMMITS" ] \
+  && python3 "$GITHUB_ACTION_PATH/src/git_identity/bots.py" --bots "$ALLOW_BOTS" --range "$range"; then
   exit 0
 fi
 

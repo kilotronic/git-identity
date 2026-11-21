@@ -39,9 +39,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: kilotronic/git-identity@v2   # pin a commit SHA in production
+      - uses: kilotronic/git-identity@v2 # pin a commit SHA in production
         with:
-          domains: ixid.net, kilotronic.com  # optional
+          domains: ixid.net, kilotronic.com # optional
 ```
 
 By default, the Action checks the **authors of the commits the event brings in**:
@@ -68,16 +68,16 @@ To make it a required check, add the job's name (`git-identity` above) to the br
 
 Inputs:
 
-| Input | Default | Meaning |
-| --- | --- | --- |
-| `domains` | empty (any) | Allowed email domains, separated by commas, spaces or newlines |
-| `commits` | empty (this event's commits) | A git range such as `main..HEAD`, or `identity` to check the identity git would stamp on the runner (the v1 behavior) |
-| `allow-bots` | empty (nobody) | Dependency bots whose own updates skip the check: `dependabot`, `renovate` (see below) |
-| `commit-subject` | `false` | `true` also checks each commit's subject (see above) |
-| `commit-types` | empty (the default list) | The types `commit-subject` allows, separated by commas or spaces |
-| `skip` | empty | Checks to skip, by id: only `commit-subject`. The author check and the session trailer check are the floor: naming one warns and it runs; an unknown id fails |
-| `token` | `github.token` | Used only with `allow-bots`, to ask GitHub which pull request a pushed commit merged |
-| `domain` | empty | Deprecated v1 alias; it is combined with `domains` |
+| Input            | Default                      | Meaning                                                                                                                                                       |
+| ---------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `domains`        | empty (any)                  | Allowed email domains, separated by commas, spaces or newlines                                                                                                |
+| `commits`        | empty (this event's commits) | A git range such as `main..HEAD`, or `identity` to check the identity git would stamp on the runner (the v1 behavior)                                         |
+| `allow-bots`     | empty (nobody)               | Dependency bots whose own updates skip the check: `dependabot`, `renovate` (see below)                                                                        |
+| `commit-subject` | `false`                      | `true` also checks each commit's subject (see above)                                                                                                          |
+| `commit-types`   | empty (the default list)     | The types `commit-subject` allows, separated by commas or spaces                                                                                              |
+| `skip`           | empty                        | Checks to skip, by id: only `commit-subject`. The author check and the session trailer check are the floor: naming one warns and it runs; an unknown id fails |
+| `token`          | `github.token`               | Used only with `allow-bots`, to ask GitHub which pull request a pushed commit merged                                                                          |
+| `domain`         | empty                        | Deprecated v1 alias; it is combined with `domains`                                                                                                            |
 
 ### Dependency bots (opt-in)
 
@@ -107,10 +107,10 @@ the normal author check runs. A commit that only uses a bot's email is still ref
   from its branch. This is a squash merge; a merge commit or rebase merge of a bot's pull request is
   checked as usual.
 
-| Bot | Login | Author email | Branch prefix |
-| --- | --- | --- | --- |
-| `dependabot` | `dependabot[bot]` | `49699333+dependabot[bot]@users.noreply.github.com` | `dependabot/` |
-| `renovate` | `renovate[bot]` (the GitHub App) | `29139614+renovate[bot]@users.noreply.github.com` | `renovate/` |
+| Bot          | Login                            | Author email                                        | Branch prefix |
+| ------------ | -------------------------------- | --------------------------------------------------- | ------------- |
+| `dependabot` | `dependabot[bot]`                | `49699333+dependabot[bot]@users.noreply.github.com` | `dependabot/` |
+| `renovate`   | `renovate[bot]` (the GitHub App) | `29139614+renovate[bot]@users.noreply.github.com`   | `renovate/`   |
 
 Renovate must use its default `branchPrefix` and commit through the GitHub App (its default), so GitHub
 is the committer. `allow-bots` applies only to the event's own commits, not to an explicit `commits`
@@ -127,10 +127,10 @@ Works with [prek](https://github.com/j178/prek) and with [pre-commit](https://pr
 ```yaml
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    rev: 5a7b91c3194870cf535ba8c37a6c93b19b5a933b  # v2.3.1
+    rev: 5a7b91c3194870cf535ba8c37a6c93b19b5a933b # v2.3.1
     hooks:
       - id: git-identity
-        args: ["--domain=ixid.net,kilotronic.com"]  # optional; quoted, or YAML splits the list at the comma
+        args: ["--domain=ixid.net,kilotronic.com"] # optional; quoted, or YAML splits the list at the comma
         fail_fast: true
 ```
 
@@ -140,7 +140,7 @@ The commit-message hooks run at the `commit-msg` stage:
 default_install_hook_types: [pre-commit, commit-msg]
 repos:
   - repo: https://github.com/kilotronic/git-identity
-    rev: <commit of the release>  # frozen: v2.4.0
+    rev: <commit of the release> # frozen: v2.4.0
     hooks:
       - id: git-identity
       - id: commit-subject
