@@ -63,7 +63,8 @@ fi
 
 args=()
 for d in $DOMAINS; do args+=(--domain "$d"); done
-check=("python3" "$GITHUB_ACTION_PATH/src/git_identity/check.py")
+# As a module, so check.py can use bots.py for squash-bots.
+check=("env" "PYTHONPATH=$GITHUB_ACTION_PATH/src${PYTHONPATH:+:$PYTHONPATH}" "python3" "-m" "git_identity.check")
 
 if [ "$range" = identity ]; then
   exec "${check[@]}" ${args[@]+"${args[@]}"}
@@ -120,6 +121,11 @@ if [ -n "${ALLOW_BOTS//[[:space:],]/}" ] && [ -z "$COMMITS" ] \
 fi
 
 # The authors, then the same commits' messages: every check runs, so one run shows every finding.
+# squash-bots: on a push, a listed bot's squash merge is judged by its pull request's own commits.
+squash_bots="${SQUASH_BOTS:-}"
+if [ -n "${squash_bots//[[:space:],]/}" ] && [ -z "$COMMITS" ] && [ "$EVENT" = push ]; then
+  args+=(--squash-bots "$squash_bots")
+fi
 bad=0
 "${check[@]}" --commits "$range" ${args[@]+"${args[@]}"} || bad=1
 msg=("python3" "$GITHUB_ACTION_PATH/src/git_identity/commit_msg.py")

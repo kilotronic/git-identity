@@ -172,6 +172,13 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         help="judge the authors of the commits in this git range (e.g. main..HEAD) "
         "instead of the identity this machine would stamp",
     )
+    parser.add_argument(
+        "--squash-bots",
+        default="",
+        metavar="LOGINS",
+        help="with --commits on a push: bot logins whose squash merges are judged by the merged pull "
+        "request's own commits (asks GitHub: GITHUB_API_URL, GITHUB_REPOSITORY, GITHUB_TOKEN)",
+    )
     return parser.parse_args(argv)
 
 
@@ -179,9 +186,24 @@ def _check_commits(
     rev_range: str,
     domains: Sequence[str],
     *,
+    squash_bots: Sequence[str] = (),
+    environ: Mapping[str, str] | None = None,
     git_log: Callable[[str], tuple[int, str, str]] | None = None,
 ) -> int:
-    authors = commit_authors(rev_range, git_log=git_log)
+    if squash_bots:
+        # The Action runs this file as a module, so the package imports.
+        from git_identity import bots
+
+        env = os.environ if environ is None else environ
+        authors = bots.squash_authors(
+            squash_bots,
+            rev_range,
+            git_log=bots._squash_log,
+            pulls_of=bots.github_pulls_of(env),
+            pr_commits=bots.github_pr_commits(env),
+        )
+    else:
+        authors = commit_authors(rev_range, git_log=git_log)
     found: list[str] = []
     for sha, name, email in authors:
         found.extend(problems(name, email, f"commit {sha[:7]} author", domains=domains))
@@ -212,7 +234,14 @@ def main(
     args = _parse_args(argv)
     domains = sorted(set(args.domain))
     if args.commits is not None:
-        return _check_commits(args.commits, domains, git_log=git_log)
+        squash_bots = [b for b in re.split(r"[,\s]+", args.squash_bots) if b]
+        return _check_commits(
+            args.commits,
+            domains,
+            squash_bots=squash_bots,
+            environ=environ,
+            git_log=git_log,
+        )
 
     env = os.environ if environ is None else environ
     found: list[str] = []

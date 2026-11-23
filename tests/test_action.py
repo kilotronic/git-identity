@@ -571,3 +571,115 @@ def test_message_checks_skip_the_runner_identity_events(repo) -> None:
     clone, _base, _bad, _good = repo
     run = _action(clone, EVENT="schedule", VISIBILITY="public", COMMIT_SUBJECT="true")
     assert run.returncode == 0, run.stdout + run.stderr
+
+
+# --- squash-bots: a listed bot's squash merge is judged by its pull request's own commits
+
+
+@pytest.fixture
+def github(tmp_path: Path):
+    """A stand-in for GitHub's API: answers set in ``answers`` by path; returns (url, answers)."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    answers: dict[str, object] = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            path = self.path.split("?")[0]
+            if path not in answers:
+                self.send_error(404)
+                return
+            body = json.dumps(answers[path]).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}", answers
+    server.shutdown()
+
+
+def _squash_push(clone: Path, base: str, url: str, **env: str):
+    full = {
+        "EVENT": "push",
+        "PUSH_BEFORE": base,
+        "DOMAINS": "ixid.net",
+        "SQUASH_BOTS": "acme-agents",
+        "GITHUB_API_URL": url,
+        "GITHUB_REPOSITORY": "acme/app",
+        "GITHUB_TOKEN": "t",
+    }
+    full.update(env)
+    return _action(clone, **full)
+
+
+def test_a_squash_bots_merge_of_good_commits_passes(repo, github) -> None:
+    clone, _base, _bad, _good = repo
+    url, answers = github
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "feat: x", author=AGENT_BOT)
+    squash = _git(clone, "rev-parse", "HEAD")
+    answers[f"/repos/acme/app/commits/{squash}/pulls"] = [
+        {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "merge_commit_sha": squash}
+    ]
+    answers["/repos/acme/app/pulls/7/commits"] = [
+        {
+            "sha": "c" * 40,
+            "parents": [{}],
+            "commit": {"author": {"name": "Ada", "email": GOOD}},
+        }
+    ]
+    run = _squash_push(clone, f"{squash}~1", url, PUSH_AFTER=squash)
+    assert run.returncode == 0, run.stderr
+    assert "pull request #7" in run.stdout
+
+
+def test_a_squash_bots_merge_of_a_bad_commit_is_refused(repo, github) -> None:
+    clone, _base, _bad, _good = repo
+    url, answers = github
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "feat: x", author=AGENT_BOT)
+    squash = _git(clone, "rev-parse", "HEAD")
+    answers[f"/repos/acme/app/commits/{squash}/pulls"] = [
+        {"number": 7, "merged_at": "2026-01-01T00:00:00Z", "merge_commit_sha": squash}
+    ]
+    answers["/repos/acme/app/pulls/7/commits"] = [
+        {
+            "sha": "c" * 40,
+            "parents": [{}],
+            "commit": {"author": {"name": "Jay", "email": BAD}},
+        }
+    ]
+    run = _squash_push(clone, f"{squash}~1", url, PUSH_AFTER=squash)
+    assert run.returncode == 1
+    assert f"commit {'c' * 7} author email '{BAD}'" in run.stderr
+
+
+def test_a_squash_bots_merge_github_does_not_know_is_refused(repo, github) -> None:
+    clone, _base, _bad, _good = repo
+    url, _answers = github
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "feat: x", author=AGENT_BOT)
+    squash = _git(clone, "rev-parse", "HEAD")
+    run = _squash_push(clone, f"{squash}~1", url, PUSH_AFTER=squash)
+    assert run.returncode == 1
+    assert "acme-agents[bot]@users.noreply.github.com' is not in domain" in run.stderr
+
+
+def test_squash_bots_does_not_apply_to_a_pull_request(repo, github) -> None:
+    clone, _base, _bad, good = repo
+    url, _answers = github
+    _git(clone, "commit", "-q", "--allow-empty", "-m", "feat: x", author=AGENT_BOT)
+    tip = _git(clone, "rev-parse", "HEAD")
+    run = _squash_push(
+        clone, good, url, EVENT="pull_request", PR_BASE=good, PR_HEAD=tip
+    )
+    assert run.returncode == 1
+    assert "is not in domain" in run.stderr
+
+
+AGENT_BOT = "12345+acme-agents[bot]@users.noreply.github.com"
