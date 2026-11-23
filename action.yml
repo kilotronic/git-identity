@@ -31,6 +31,14 @@ inputs:
       is skipped; a commit that only uses a bot's email is checked as usual. Needs `pull-requests: read`.
     required: false
     default: ""
+  squash-bots:
+    description: >-
+      Bot logins (e.g. "acme-agents") that open and merge people's pull requests, separated by commas, spaces or
+      newlines. On a push, a squash merge GitHub authored as one of them is judged by the merged pull request's
+      own commits instead of by the bot's address. Empty (default) judges every commit by its own author. Needs
+      `pull-requests: read`.
+    required: false
+    default: ""
   commit-subject:
     description: >-
       "true" also checks that each commit's subject reads `<type>: <imperative summary>` (the commit-subject rule).
@@ -51,7 +59,9 @@ inputs:
     required: false
     default: ""
   token:
-    description: Token for asking GitHub which pull request a pushed commit merged (only used with `allow-bots`).
+    description: >-
+      Token for asking GitHub which pull request a pushed commit merged, and its commits (only used with
+      `allow-bots` and `squash-bots`).
     required: false
     default: ${{ github.token }}
 
@@ -71,6 +81,7 @@ runs:
         PUSH_REF: ${{ github.ref }}
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         ALLOW_BOTS: ${{ inputs.allow-bots }}
+        SQUASH_BOTS: ${{ inputs.squash-bots }}
         PR_USER: ${{ github.event.pull_request.user.login }}
         HEAD_REF: ${{ github.head_ref }}
         ACTOR: ${{ github.actor }}

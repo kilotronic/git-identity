@@ -17,12 +17,19 @@ BOB = ("d" * 40, "Bob", "bob@ixid.net")
 
 
 def _log(*commits: tuple[str, str, str, str]):
-    out = "".join(f"{sha}\0{name}\0{author}\0{committer}\n" for sha, name, author, committer in commits)
+    out = "".join(
+        f"{sha}\0{name}\0{author}\0{committer}\n"
+        for sha, name, author, committer in commits
+    )
     return lambda _range: (0, out, "")
 
 
 def _pr(sha: str, number: int = 7, **over):
-    pr = {"number": number, "merged_at": "2026-01-01T00:00:00Z", "merge_commit_sha": sha}
+    pr = {
+        "number": number,
+        "merged_at": "2026-01-01T00:00:00Z",
+        "merge_commit_sha": sha,
+    }
     pr.update(over)
     return pr
 
@@ -53,14 +60,22 @@ def test_a_persons_commit_is_judged_as_itself() -> None:
 @pytest.mark.parametrize(
     "author, committer",
     [
-        (AGENT, AGENT),  # not committed by GitHub: a commit that only claims the address
+        (
+            AGENT,
+            AGENT,
+        ),  # not committed by GitHub: a commit that only claims the address
         (AGENT, "mallory@example.org"),
         ("12345+other-bot[bot]@users.noreply.github.com", GITHUB),  # a bot not listed
-        ("acme-agents[bot]@users.noreply.github.com", GITHUB),  # not GitHub's noreply form
+        (
+            "acme-agents[bot]@users.noreply.github.com",
+            GITHUB,
+        ),  # not GitHub's noreply form
         ("12345+acme-agents[bot]@users.noreply.github.com.evil", GITHUB),
     ],
 )
-def test_anything_but_the_listed_bots_github_commit_is_judged_as_itself(author, committer) -> None:
+def test_anything_but_the_listed_bots_github_commit_is_judged_as_itself(
+    author, committer
+) -> None:
     log = _log((SHA_A, "x", author, committer))
     assert _authors(git_log=log) == [(SHA_A, "x", author)]
 
@@ -100,12 +115,19 @@ def test_each_pushed_commit_is_judged_on_its_own() -> None:
         (SHA_A, "acme-agents[bot]", AGENT, GITHUB),
         (SHA_B, "Mallory", "mallory@example.org", GITHUB),
     )
-    assert _authors(git_log=log) == [ADA, BOB, (SHA_B, "Mallory", "mallory@example.org")]
+    assert _authors(git_log=log) == [
+        ADA,
+        BOB,
+        (SHA_B, "Mallory", "mallory@example.org"),
+    ]
 
 
 def test_the_merged_pull_request_is_the_one_asked_for() -> None:
     asked = []
-    _authors(pulls_of=lambda sha: [_pr(SHA_B, 3), _pr(sha, 9)], pr_commits=lambda n: asked.append(n) or [ADA])
+    _authors(
+        pulls_of=lambda sha: [_pr(SHA_B, 3), _pr(sha, 9)],
+        pr_commits=lambda n: asked.append(n) or [ADA],
+    )
     assert asked == [9]
 
 

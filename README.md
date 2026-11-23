@@ -73,10 +73,11 @@ Inputs:
 | `domains`        | empty (any)                  | Allowed email domains, separated by commas, spaces or newlines                                                                                                |
 | `commits`        | empty (this event's commits) | A git range such as `main..HEAD`, or `identity` to check the identity git would stamp on the runner (the v1 behavior)                                         |
 | `allow-bots`     | empty (nobody)               | Dependency bots whose own updates skip the check: `dependabot`, `renovate` (see below)                                                                        |
+| `squash-bots`    | empty (nobody)               | Bot logins whose squash merges on a push are judged by the merged pull request's own commits (see below)                                                      |
 | `commit-subject` | `false`                      | `true` also checks each commit's subject (see above)                                                                                                          |
 | `commit-types`   | empty (the default list)     | The types `commit-subject` allows, separated by commas or spaces                                                                                              |
 | `skip`           | empty                        | Checks to skip, by id: only `commit-subject`. The author check and the session trailer check are the floor: naming one warns and it runs; an unknown id fails |
-| `token`          | `github.token`               | Used only with `allow-bots`, to ask GitHub which pull request a pushed commit merged                                                                          |
+| `token`          | `github.token`               | Used only with `allow-bots` and `squash-bots`, to ask GitHub which pull request a pushed commit merged                                                        |
 | `domain`         | empty                        | Deprecated v1 alias; it is combined with `domains`                                                                                                            |
 
 ### Dependency bots (opt-in)
@@ -115,6 +116,30 @@ the normal author check runs. A commit that only uses a bot's email is still ref
 Renovate must use its default `branchPrefix` and commit through the GitHub App (its default), so GitHub
 is the committer. `allow-bots` applies only to the event's own commits, not to an explicit `commits`
 range. The pre-commit hook and CLI are unaffected.
+
+### Bots that merge people's pull requests (opt-in)
+
+When a GitHub App opens and merges pull requests for people (an agents' App, say), GitHub authors the squash
+commit on the default branch as the App, so the push fails the author check although every commit in the
+pull request names a real person. `squash-bots` judges such a squash merge by its pull request's own commits:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: read # squash-bots: which pull request a pushed commit merged, and its commits
+steps:
+  - uses: actions/checkout@v4
+  - uses: kilotronic/git-identity@v2
+    with:
+      domains: ixid.net
+      squash-bots: acme-agents
+```
+
+Only on a push, and only for a commit authored by a listed bot's GitHub noreply address
+(`<id>+<login>[bot]@users.noreply.github.com`), committed by GitHub, that GitHub links as the merge commit
+of a merged pull request. Its non-merge commits are judged in its place, with the same domains. Anything
+else, or any error asking GitHub, judges the commit itself, so it is refused. Pull requests are unaffected:
+their commits are judged as usual. The commit-message checks still read the squash commit.
 
 **v1 → v2:** v1 checked the runner's identity, not the commits. To keep that behavior, add
 `commits: identity`.
